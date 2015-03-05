@@ -1,0 +1,27 @@
+{
+  "name": "audio-dsl",
+  "version": "0.0.1",
+  "description": "DSL for web audio api",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:modernserf/audio-dsl.git"
+  },
+  "author": "Justin Falcone <justin@justinfalcone.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/modernserf/audio-dsl/issues"
+  },
+  "homepage": "https://github.com/modernserf/audio-dsl",
+  "dependencies": {
+    "babel": "^4.6.6",
+    "babel-core": "^4.6.6",
+    "babel-loader": "^4.0.0",
+    "webpack": "^1.7.2",
+    "webpack-dev-server": "^1.7.0"
+  }
+}
