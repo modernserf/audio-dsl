@@ -28,6 +28,15 @@ class ValueState {
     onUpdate (fn) {
         this.listeners.push(fn);
     }
+    map (fn) {
+        let mapper = new ValueState({
+            value: this.value,
+            listeners: []
+        });
+
+        this.onUpdate((v) => mapper.set(fn(v)));
+        return mapper;
+    }
     set (value) {
         this.value = value;
         this.publish();
@@ -44,7 +53,6 @@ ValueState.create = (value) => {
         value: value,
         listeners: []
     });
-    newState.publish();
     return newState;
 };
 
@@ -52,7 +60,7 @@ const link = (src, dest) => {
     if (src instanceof ValueState) {
         dest.value = src.value;
         src.onUpdate((v) => {
-            dest.value = v;
+            dest.setValueAtTime(v, audioCtx.currentTime + 1);
         });
     } else {
         dest.value = src;
@@ -104,35 +112,118 @@ function Mixer (params) {
     return new NodeWrapper(out);
 }
 
-document.addEventListener('DOMContentLoaded', ()=> {
-    let pad = document.getElementById('xy-pad');
+const toNote = (low, octaves) => (value) => {
+    return low * Math.pow(2, octaves * value);
+};
 
-    let freq = ValueState.create(220);
-    let gain = ValueState.create(0);
+const notes = (()=> {
+    let _notes = ['A','Bb','B','C','Db','D','Eb','E','F','Gb','G','Ab']
+        .map((n,i) => {
+            return {
+                id: n,
+                freq: toNote(27.5, 1)(i/12)
+            };
+        }).reduce((coll,x) => {
+            coll[x.id] = x.freq;
+            return coll;
+        },{});
 
-    getOutput(()=> {
-        const osc1 = Osc({type: "sawtooth",frequency: freq});
-        const osc2 = Osc({type: "sawtooth",frequency: freq, detune: 20});
+    _notes['A#'] = _notes.Bb;
+    _notes['C#'] = _notes.Db;
+    _notes['D#'] = _notes.Eb;
+    _notes['F#'] = _notes.Gb;
+    _notes['G#'] = _notes.Ab;
+    return _notes;
+})();
+console.log(notes);
+
+function Clock (params) {
+    // BPM: beats per minute
+    // division: clock division, e.g. 1 - whole note; 16 - sixteenth note
+    const { bpm, division } = params;
+
+    const ms = 60000 / (division * bpm/4);
+
+    let outs = {
+        trig: ValueState.create()
+    };
+
+    const updateLoop = () => {
+        outs.trig.set(null);
+        window.setTimeout(updateLoop,ms);
+    };
+
+    updateLoop();
+
+    return outs;
+}
+
+function Sequencer (params) {
+    const { sequence, trig } = params;
+
+    // todo: sequence type
+    const freqs = sequence.map((x) => {
+        const n = x.match(/\D+/)[0];
+        const o = Number(x.match(/\d+/)[0]);
+
+        console.log(x,n,o);
+
+        return notes[n] * o;
+    });
+
+    console.log(freqs);
+
+    let i = 0;
+
+    let outs = {
+        freq: ValueState.create()
+    };
+
+    trig.onUpdate(() => {
+        outs.freq.set(freqs[i]);
+        i = (i + 1) % freqs.length;
+    });
+
+    return outs;
+}
+
+function XYPad (pad) {
+    let outs = {
+        x: ValueState.create(0),
+        y: ValueState.create(0)
+    };
+
+    const range = 300;
+    pad.addEventListener('scroll', (e)=> {
+        const { scrollTop, scrollLeft } = e.target;
+        outs.x.set(scrollLeft/range);
+        outs.y.set(scrollTop/range);
+    });
+    return outs;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const pad = XYPad(document.getElementById('xy-pad'));
+
+    const clock = Clock({bpm: 120, division: 16});
+    const seq = Sequencer({sequence: ['A4','C4','D4','E4'], trig: clock.trig});
+
+    const seqOctave = seq.freq.map(x => x / 2);
+
+    // seq.freq.onUpdate(x => console.log('seq',x));
+
+    const cutoff =  pad.y.map(toNote(100, 10));
+    const gain = pad.x;
+
+    getOutput(() => {
+        const osc1 = Osc({type: "sawtooth",frequency: seq.freq});
+        const osc2 = Osc({type: "sawtooth",frequency: seqOctave , detune: 20});
 
         return Mixer({channels: [[osc1, 1],[osc2, 1]]})
-            .connect(VCF({type: "lowpass", cutoff: 2000, resonance: 0.5}))
+            .connect(VCF({type: "lowpass", cutoff: cutoff, resonance: 0.5}))
             .connect(VCA({gain: gain}));
     });
 
-    pad.addEventListener('scroll', (e)=> {
-        const { scrollTop, scrollLeft } = e.target;
-
-        console.log(scrollTop,scrollLeft);
-
-        freq.set(220 +  220 * scrollTop/300);
-        gain.set(scrollLeft/300);
-    });
 });
-
-
-
-
-
-
 
 
