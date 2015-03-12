@@ -56,12 +56,72 @@ ValueState.create = (value) => {
     return newState;
 };
 
+class Envelope {
+    constructor (env) {
+        this.attack = env.attack;
+        this.decay = env.decay;
+        this.sustain = env.sustain;
+        this.release = env.release;
+        this.gate = env.gate;
+        this.listeners = env.listeners;
+        this.value = env.value;
+        this.factor = env.factor;
+    }
+    connect (l) {
+        l.value = 0;
+        this.listeners.push(l);
+    }
+    onGateStart () {
+        // prevent retrig
+        if (this.value){ return; }
+        this.value = 1;
+        this.listeners.forEach((l) => {
+            const z = 0.01;
+            // attack phase
+            l.setValueAtTime(0, audioCtx.currentTime + z);
+            l.linearRampToValueAtTime(this.factor,
+                audioCtx.currentTime + z + this.attack);
+            // decay phase
+            l.linearRampToValueAtTime(this.sustain * this.factor,
+                audioCtx.currentTime + z + this.attack + this.decay);
+        });
+    }
+    onGateEnd () {
+        this.value = 0;
+        this.listeners.forEach((l) => {
+            const z = 0.01;
+            // release phase
+            l.linearRampToValueAtTime(0, 
+                audioCtx.currentTime + z + this.release);
+        });
+    }
+}
+
+Envelope.create = (params) => {
+    params.factor = params.factor || 1;
+    params.listeners = params.listeners || [];
+    const env = new Envelope(params);
+
+    env.gate.onUpdate(v => {
+        if (v) {
+            console.log('start')
+            env.onGateStart();
+        } else {
+            console.log('end')
+            env.onGateEnd();
+        }
+    });
+    return env;
+};
+
 const link = (src, dest) => {
     if (src instanceof ValueState) {
         dest.value = src.value;
         src.onUpdate((v) => {
             dest.value = v;
         });
+    } else if (src instanceof Envelope) {
+        src.connect(dest);
     } else {
         dest.value = src;
     }
@@ -270,6 +330,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const key = Keyboard(_keyboard);
 
     const clock = Clock({bpm: 120, division: 16});
+
+    const ADSR = Envelope.create({
+        attack: 0, decay: 1, sustain: 0, release: 1,
+        gate: key.gate, factor: 2000
+    });
+
     // const seq = Sequencer({sequence: ['A4','C4','D4','E4'], trig: clock.trig});
 
     // const seqOctave = seq.freq.map(x => x / 2);
@@ -280,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     getOutput(() => {
         return Osc({type: "sawtooth",frequency: key.freq.map(x => x/2)})
-            .connect(VCF({type: "lowpass", cutoff: cutoff, resonance: 0.5}))
+            .connect(VCF({type: "lowpass", cutoff: ADSR, resonance: 0.5}))
             .connect(VCA({gain: key.gate}));
     });
 
