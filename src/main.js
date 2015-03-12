@@ -217,36 +217,46 @@ function Keyboard (el) {
         ['L','D5']
     ]);
 
-    const noteOn = (key) => {
+    const keyCodeToPitch = (keyCode) => {
+        const key = String.fromCharCode(keyCode);
         const noteName = keyMap.get(key);
         if (!noteName){ return; }
-        outs.freq.set(noteNameToPitch(noteName));
-        outs.gate.set(1);
-    };
-
-    const noteOff = () => {
-        outs.gate.set(0);
+        return noteNameToPitch(noteName);
     };
 
     let noteStack = [];
 
-    el.addEventListener('keydown', (e) => {
-        if (!~noteStack.indexOf(e.keyCode)) {
-            noteStack.push(e.keyCode);            
+    const noteOn = (pitch) => {
+        // add pitch to noteStack
+        if (!~noteStack.indexOf(pitch)) {
+            noteStack.push(pitch);            
         }
-        noteOn(String.fromCharCode(e.keyCode));
+        outs.freq.set(pitch);
+        outs.gate.set(1);
+    };
+
+    const noteOff = (pitch) => {
+        const i = noteStack.indexOf(pitch);
+
+        // remove pitch from noteStack
+        if (~!i){ noteStack.splice(i,1); }
+
+        // set pitch to head of noteStack 
+        if (noteStack.length) {
+            outs.freq.set(noteStack[noteStack.length - 1]);
+        } else {
+            outs.gate.set(0);
+        }
+    };
+
+    el.addEventListener('keydown', (e) => {
+        const pitch = keyCodeToPitch(e.keyCode);
+        if (pitch) { noteOn(pitch); }
     });
 
     el.addEventListener('keyup', (e) => {
-        const i = noteStack.indexOf(e.keyCode);
-        if (~!i){
-            noteStack.splice(i,1);
-        }
-        if (noteStack.length) {
-            noteOn(String.fromCharCode(noteStack[noteStack.length - 1]));
-        } else {
-            noteOff();
-        }        
+        const pitch = keyCodeToPitch(e.keyCode);
+        if (pitch) { noteOff(pitch); }        
     });
 
     return outs;
