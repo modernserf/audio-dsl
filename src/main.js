@@ -60,7 +60,7 @@ const link = (src, dest) => {
     if (src instanceof ValueState) {
         dest.value = src.value;
         src.onUpdate((v) => {
-            dest.setValueAtTime(v, audioCtx.currentTime + 1);
+            dest.value = v;
         });
     } else {
         dest.value = src;
@@ -117,11 +117,11 @@ const toNote = (low, octaves) => (value) => {
 };
 
 const notes = (()=> {
-    let _notes = ['A','Bb','B','C','Db','D','Eb','E','F','Gb','G','Ab']
+    let _notes = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B']
         .map((n,i) => {
             return {
                 id: n,
-                freq: toNote(27.5, 1)(i/12)
+                freq: toNote(32.7032, 1)(i/12)
             };
         }).reduce((coll,x) => {
             coll[x.id] = x.freq;
@@ -135,7 +135,13 @@ const notes = (()=> {
     _notes['G#'] = _notes.Ab;
     return _notes;
 })();
-console.log(notes);
+
+const noteNameToPitch = (x) => {
+    const n = x.match(/\D+/)[0];
+    const o = Number(x.match(/\d+/)[0]);
+
+    return notes[n] * Math.pow(2, o);
+};
 
 function Clock (params) {
     // BPM: beats per minute
@@ -162,16 +168,7 @@ function Sequencer (params) {
     const { sequence, trig } = params;
 
     // todo: sequence type
-    const freqs = sequence.map((x) => {
-        const n = x.match(/\D+/)[0];
-        const o = Number(x.match(/\d+/)[0]);
-
-        console.log(x,n,o);
-
-        return notes[n] * o;
-    });
-
-    console.log(freqs);
+    const freqs = sequence.map(noteNameToPitch);
 
     let i = 0;
 
@@ -202,26 +199,79 @@ function XYPad (pad) {
     return outs;
 }
 
+function Keyboard (el) {
+    let outs = {
+        freq: ValueState.create(),
+        gate: ValueState.create(0)
+    };
+
+    const keyMap = new Map([
+        ['A','C4'],
+        ['S','D4'],
+        ['D','E4'],
+        ['F','F4'],
+        ['G','G4'],
+        ['H','A4'],
+        ['J','B4'],
+        ['K','C5'],
+        ['L','D5']
+    ]);
+
+    const noteOn = (key) => {
+        const noteName = keyMap.get(key);
+        if (!noteName){ return; }
+        outs.freq.set(noteNameToPitch(noteName));
+        outs.gate.set(1);
+    };
+
+    const noteOff = () => {
+        outs.gate.set(0);
+    };
+
+    let noteStack = [];
+
+    el.addEventListener('keydown', (e) => {
+        if (!~noteStack.indexOf(e.keyCode)) {
+            noteStack.push(e.keyCode);            
+        }
+        noteOn(String.fromCharCode(e.keyCode));
+    });
+
+    el.addEventListener('keyup', (e) => {
+        const i = noteStack.indexOf(e.keyCode);
+        if (~!i){
+            noteStack.splice(i,1);
+        }
+        if (noteStack.length) {
+            noteOn(String.fromCharCode(noteStack[noteStack.length - 1]));
+        } else {
+            noteOff();
+        }        
+    });
+
+    return outs;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    const _keyboard = document.getElementById('keyboard');
+    _keyboard.focus();
     const pad = XYPad(document.getElementById('xy-pad'));
 
+    const key = Keyboard(_keyboard);
+
     const clock = Clock({bpm: 120, division: 16});
-    const seq = Sequencer({sequence: ['A4','C4','D4','E4'], trig: clock.trig});
+    // const seq = Sequencer({sequence: ['A4','C4','D4','E4'], trig: clock.trig});
 
-    const seqOctave = seq.freq.map(x => x / 2);
-
-    // seq.freq.onUpdate(x => console.log('seq',x));
+    // const seqOctave = seq.freq.map(x => x / 2);
 
     const cutoff =  pad.y.map(toNote(100, 10));
+    cutoff.set(100);
     const gain = pad.x;
 
     getOutput(() => {
-        const osc1 = Osc({type: "sawtooth",frequency: seq.freq});
-        const osc2 = Osc({type: "sawtooth",frequency: seqOctave , detune: 20});
-
-        return Mixer({channels: [[osc1, 1],[osc2, 1]]})
+        return Osc({type: "sawtooth",frequency: key.freq.map(x => x/2)})
             .connect(VCF({type: "lowpass", cutoff: cutoff, resonance: 0.5}))
-            .connect(VCA({gain: gain}));
+            .connect(VCA({gain: key.gate}));
     });
 
 });
