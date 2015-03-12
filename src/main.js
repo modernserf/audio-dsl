@@ -64,7 +64,6 @@ class Envelope {
         this.release = env.release;
         this.gate = env.gate;
         this.listeners = env.listeners;
-        this.value = env.value;
         this.factor = env.factor;
     }
     connect (l) {
@@ -73,26 +72,23 @@ class Envelope {
     }
     onGateStart () {
         // prevent retrig
-        if (this.value){ return; }
-        this.value = 1;
         this.listeners.forEach((l) => {
-            const z = 0.01;
+            const z = 0.01 + audioCtx.currentTime;
             // attack phase
-            l.setValueAtTime(0, audioCtx.currentTime + z);
-            l.linearRampToValueAtTime(this.factor,
-                audioCtx.currentTime + z + this.attack);
+            l.cancelScheduledValues(audioCtx.currentTime);
+            l.setValueAtTime(0,z);
+            l.linearRampToValueAtTime(this.factor,z + this.attack);
             // decay phase
             l.linearRampToValueAtTime(this.sustain * this.factor,
-                audioCtx.currentTime + z + this.attack + this.decay);
+               z + this.attack + this.decay);
         });
     }
     onGateEnd () {
-        this.value = 0;
         this.listeners.forEach((l) => {
-            const z = 0.01;
+            const z = audioCtx.currentTime + 0.01;
             // release phase
-            l.linearRampToValueAtTime(0, 
-                audioCtx.currentTime + z + this.release);
+            l.cancelScheduledValues(audioCtx.currentTime);
+            l.linearRampToValueAtTime(0,z + this.release);
         });
     }
 }
@@ -104,10 +100,8 @@ Envelope.create = (params) => {
 
     env.gate.onUpdate(v => {
         if (v) {
-            console.log('start')
             env.onGateStart();
         } else {
-            console.log('end')
             env.onGateEnd();
         }
     });
@@ -289,10 +283,10 @@ function Keyboard (el) {
     const noteOn = (pitch) => {
         // add pitch to noteStack
         if (!~noteStack.indexOf(pitch)) {
-            noteStack.push(pitch);            
+            noteStack.push(pitch);   
+            outs.freq.set(pitch);
+            outs.gate.set(1);         
         }
-        outs.freq.set(pitch);
-        outs.gate.set(1);
     };
 
     const noteOff = (pitch) => {
@@ -332,8 +326,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const clock = Clock({bpm: 120, division: 16});
 
     const ADSR = Envelope.create({
-        attack: 0, decay: 1, sustain: 0, release: 1,
-        gate: key.gate, factor: 2000
+        attack: 1, decay: 1, sustain: 1, release: 1,
+        gate: key.gate, factor: 3000
     });
 
     // const seq = Sequencer({sequence: ['A4','C4','D4','E4'], trig: clock.trig});
