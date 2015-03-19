@@ -29,7 +29,12 @@
   "gh-pages-deploy": {
     "staticpath": "dist",
     "cname": "justinfalcone.com",
-    "prep": [ "build"],
+    "prep": [
+      "build"
+    ],
     "noprompt": false
+  },
+  "devDependencies": {
+    "gh-pages-deploy": "^0.3.0"
   }
 }
