@@ -327,8 +327,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const ADSR = Envelope.create({
         attack: 1, decay: 1, sustain: 1, release: 1,
-        gate: key.gate, factor: 3000
+        gate: key.gate, factor: 1
     });
+
+
 
     // const seq = Sequencer({sequence: ['A4','C4','D4','E4'], trig: clock.trig});
 
@@ -336,12 +338,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const cutoff =  pad.y.map(toNote(100, 10));
     cutoff.set(100);
-    const gain = pad.x;
+    const res = pad.x.map((x) => x * 25);
 
     getOutput(() => {
         return Osc({type: "sawtooth",frequency: key.freq.map(x => x/2)})
-            .connect(VCF({type: "lowpass", cutoff: ADSR, resonance: 0.5}))
-            .connect(VCA({gain: key.gate}));
+            .connect(VCF({type: "lowpass", cutoff: cutoff, resonance: res}))
+            .connect(VCA({gain: ADSR}));
     });
 
 });
