@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "build": "node node_modules/webpack/lib/webpack.js -p",
+    "build": "node node_modules/webpack/bin/webpack.js -p",
     "deploy": "gh-pages-deploy"
   },
   "repository": {
@@ -29,9 +29,7 @@
   "gh-pages-deploy": {
     "staticpath": "dist",
     "cname": "justinfalcone.com",
-    "prep": [
-      "build",
-    ],
+    "prep": [ "build"],
     "noprompt": false
-  },
+  }
 }
